@@ -120,14 +120,14 @@ class Server:
                 break
             
             elif img_path == 'start1':
-                result = os.path.join(img_path, 'result')
-                if os.path.exists(result):
+                result = os.path.join(os.getcwd(), 'result')
+                if not os.path.exists(result):
                     os.mkdir(result)
-                tmp_path = os.path.join(result, 'temp')
-                if os.path.exists(tmp_path):
+            
+                tmp_path = os.path.join(os.getcwd(), 'temp')
+                if not os.path.exists(tmp_path):
                     os.mkdir(tmp_path)
-                
-                
+            
             start = time.process_time()
             #save_path, result = self.diagnoisis_volt(img_path)
             # if save_path is None:
@@ -149,7 +149,7 @@ if __name__ =='__main__':
     
     S = Server(host, 
             port,
-            path=os.path.join(os.getcwd(),'work_dir', 'C010401_20210726_144328255.jpg'),
+            #path=os.path.join(os.getcwd(),'work_dir', 'C010401_20210726_144328255.jpg'),
             ini_path = os.path.join(os.getcwd(), 'AlgaeList.txt'),
             model_path=os.path.join('work_dir', 'epoch_50.pth'))
     
