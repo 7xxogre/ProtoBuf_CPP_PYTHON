@@ -4,14 +4,21 @@ import os
 import time
 from PIL import Image
 import cv2
+#Custom Function
+from one_image_inference import save_predict_obj_img,\
+                                get_predict
+                                
+from mmdet.apis import init_detector
+from mmdet.apis import inference_detector
+from mmcv import Config
+
 
 class Server:
     def __init__(self, 
                 host:str='127.0.0.1', 
                 port:int=3070,
-                path:str=None,
                 ini_path:str = os.path.join('D:', 'WATIZ', 'ini', 'AlgaeList.txt'),
-                model:str=''
+                model_path:str=''
                 ):
         
         """[Socket Server Settings]
@@ -21,16 +28,17 @@ class Server:
             port (int, optional): [port number]. Defaults to 3070.
             path (str, optional): [파이썬 서버로 보낼 원폰사진들 들어있는 폴더경로]. Defaults to ''.
             ini_path (str, optional): [Label Folder List]. Defaults to ''.
-            model (str, optional): [DL model path]. Defaults to ''.
+            model_path (str, optional): [DL model path]. Defaults to ''.
         """
         self.host = host
         self.port = port
-        self.model = model
+        self.model_path = model_path
+        
         self.serv_addr = (self.host, self.port)
         self.ini_path = ini_path
         
-        assert path != None, 'Images Path is Empty'
-        self.path = path
+        #assert path != None, 'Images Path is Empty'
+        #self.path = path
         self.conn_sock = None
         self.dataloader = None
         self.sock = None
@@ -52,8 +60,10 @@ class Server:
         
         setting model pth 
         """
+        cfg = Config.fromfile("customized_config.py")
+        self.model = init_detector(cfg, checkpoint=self.model_path)
         
-        print(f'[server]default model ' + 'ganomaly' +' is ready')
+        print(f'[server]default model AI Server is ready')
 
     def send_msg(self, msg):
         """[연결된 소켓으로 클라이언트에 메세지 전달]
@@ -108,6 +118,7 @@ class Server:
             if img_path == 'finish':
                 self.disconnect()
                 break
+            
             elif img_path == 'start1':
                 result = os.path.join(img_path, 'result')
                 if os.path.exists(result):
@@ -134,10 +145,13 @@ class Server:
 if __name__ =='__main__':
     host = '127.0.0.1'
     port = 3070
+    
+    
     S = Server(host, 
-               port,
-               path=os.getcwd(),
-                ini_path = os.path.join(os.getcwd(), 'AlgaeList.txt'),
-                model='')
+            port,
+            path=os.path.join(os.getcwd(),'work_dir', 'C010401_20210726_144328255.jpg'),
+            ini_path = os.path.join(os.getcwd(), 'AlgaeList.txt'),
+            model_path=os.path.join('work_dir', 'epoch_50.pth'))
+    
     S.server_activate()
     

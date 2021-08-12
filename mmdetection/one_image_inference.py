@@ -3,19 +3,13 @@ import torch
 import numpy as np
 from PIL import Image
 
-from mmcv import Config
+
 from mmdet.apis import init_detector
 from mmdet.apis import inference_detector
 
 
-cfg = Config.fromfile("customized_config.py")
-checkpoint_path = "work_dir/epoch_50.pth"
 
-model = init_detector(cfg, checkpoint_path)
-
-
-
-def save_predict_obj_img(img_path, save_path = None):
+def save_predict_obj_img(model, img_path, save_path = None):
     """
         image 경로를 받아 해당 이미지에 대한 모델의 예측을 생성해 object로 추정되는
         crop을 save_path에 저장하는 함수
@@ -50,10 +44,9 @@ def save_predict_obj_img(img_path, save_path = None):
             im.save(save_path + img_name + '_' + str(labels[i]) + '_' + str(cnt) + '.jpg')
             cnt += 1
     
-save_predict_obj_img("test_data\JPEGImages\C010301_20210726_144327400.jpg")
 
 
-def get_predict(img_path):
+def get_predict(model, img_path):
     """
         이미지 경로를 받아 해당 이미지에 대한 모델의 예측을 생성하여 
         [[class_num, 확률, class_num, bbox 가로, bbox 세로], ...] 의 object별 리스트 리턴
@@ -81,4 +74,9 @@ def get_predict(img_path):
 
     return ret
 
-get_predict("test_data\JPEGImages\C010301_20210726_144327400.jpg")
+if __name__=="__main__":
+    
+    checkpoint_path = "work_dir/epoch_50.pth"
+    
+    save_predict_obj_img("test_data\JPEGImages\C010301_20210726_144327400.jpg")
+    get_predict("test_data\JPEGImages\C010301_20210726_144327400.jpg")
