@@ -2,7 +2,7 @@ import mmcv
 import torch
 import numpy as np
 from PIL import Image
-
+import os
 
 from mmdet.apis import init_detector
 from mmdet.apis import inference_detector
@@ -15,10 +15,7 @@ def save_predict_obj_img(model, img_path, save_path = None):
         crop을 save_path에 저장하는 함수
     """
     if save_path is None:
-        save_path = ""
-        for p in range(len(img_path.split('\\')) - 1):
-            save_path += img_path.split('\\')[p]
-            save_path += '\\'
+        save_path = os.path.split(img_path)[0]
 
     result = inference_detector(model, img_path)
     if isinstance(result, tuple):
@@ -27,8 +24,7 @@ def save_predict_obj_img(model, img_path, save_path = None):
             segm_result = segm_result[0]  # ms rcnn
     else:
         bbox_result, segm_result = result, None
-    img_name = img_path.split('\\')[-1].split('.')[0]
-    
+    img_name = os.path.split(img_path)[-1].split('.')[0]
     labels = [
             np.full(bbox.shape[0], i, dtype=np.int32)
             for i, bbox in enumerate(bbox_result)
@@ -41,7 +37,8 @@ def save_predict_obj_img(model, img_path, save_path = None):
     for i in range(len(bboxes)):
         if bboxes[i, -1] > 0.4:
             im = Image.fromarray(img_origin[int(bboxes[i, 1]) : int(bboxes[i, 3]),int(bboxes[i, 0]) : int(bboxes[i, 2]),:])
-            im.save(save_path + img_name + '_' + str(labels[i]) + '_' + str(cnt) + '.jpg')
+            path = os.path.join(save_path , img_name + '_' + str(labels[i]) + '_' + str(cnt) + '.jpg')
+            im.save(path)
             cnt += 1
     
 
@@ -56,7 +53,7 @@ def get_predict(model, img_path):
     if isinstance(result, tuple):
         bbox_result, segm_result = result
         if isinstance(segm_result, tuple):
-            segm_result = segm_result[0]  # ms rcnn
+            segm_result = segm_result[0] 
     else:
         bbox_result, segm_result = result, None
 
@@ -69,7 +66,7 @@ def get_predict(model, img_path):
     labels = np.concatenate(labels)
     for i, bbox in enumerate(bboxes):
         if bbox[-1] > 0.4:
-            lst = [labels[i],bbox[-1], labels[i], int(bbox[3]) - int(bbox[1]), int(bbox[2]) - int(bbox[0])]
+            lst = [img_path, labels[i],bbox[-1], labels[i], int(bbox[3]) - int(bbox[1]), int(bbox[2]) - int(bbox[0])]
             ret.append(lst)
 
     return ret
