@@ -93,9 +93,9 @@ UINT cthread(LPVOID pParam) {
 			qu.pop();
 			//mu.unlock();
 			mu.unlock();
-			C.send_msg(path);
-		
-			result = C.recv_msg();
+			C.send_msg(String("start1"));	//경로 보내는거
+			//C.send_msg(path);	//경로 보내는거
+			result = C.recv_msg();	//결과 받는거
 			if(result =="pramchange")
 			{
 				continue;

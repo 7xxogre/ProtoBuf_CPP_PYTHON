@@ -7,22 +7,30 @@ import cv2
 
 class Server:
     def __init__(self, 
-                host='127.0.0.1', 
-                port=3070,
-                model=''
+                host:str='127.0.0.1', 
+                port:int=3070,
+                path:str=None,
+                ini_path:str = os.path.join('D:', 'WATIZ', 'ini', 'AlgaeList.txt'),
+                model:str=''
                 ):
-        """[summary]
+        
+        """[Socket Server Settings]
 
         Args:
             host (str, optional): [host ip number]. Defaults to '127.0.0.1'.
             port (int, optional): [port number]. Defaults to 3070.
+            path (str, optional): [파이썬 서버로 보낼 원폰사진들 들어있는 폴더경로]. Defaults to ''.
+            ini_path (str, optional): [Label Folder List]. Defaults to ''.
             model (str, optional): [DL model path]. Defaults to ''.
         """
         self.host = host
         self.port = port
         self.model = model
         self.serv_addr = (self.host, self.port)
+        self.ini_path = ini_path
         
+        assert path != None, 'Images Path is Empty'
+        self.path = path
         self.conn_sock = None
         self.dataloader = None
         self.sock = None
@@ -79,8 +87,8 @@ class Server:
 
     def server_activate(self):
         self.load_model()
-        test_sample_path = './init_sample.bmp'
-        _,_ = self.diagnoisis_volt(test_sample_path)
+        # test_sample_path = './init_sample.bmp'
+        # _,_ = self.diagnoisis_volt(test_sample_path)
         self.establish()
         self.send_msg('server is ready')
         
@@ -100,17 +108,25 @@ class Server:
             if img_path == 'finish':
                 self.disconnect()
                 break
-            
+            elif img_path == 'start1':
+                result = os.path.join(img_path, 'result')
+                if os.path.exists(result):
+                    os.mkdir(result)
+                tmp_path = os.path.join(result, 'temp')
+                if os.path.exists(tmp_path):
+                    os.mkdir(tmp_path)
+                
+                
             start = time.process_time()
-            save_path, result = self.diagnoisis_volt(img_path)
-            if save_path is None:
-                continue
+            #save_path, result = self.diagnoisis_volt(img_path)
+            # if save_path is None:
+            #     continue
 
-            print(f'result_code {result}\n result_path {save_path}')
+            # print(f'result_code {result}\n result_path {save_path}')
             end = time.process_time()
-            result_msg = f'{result}?{save_path}'
-            self.send_msg(result_msg)
-            print(result_msg)
+            #result_msg = f'{result}?{save_path}'
+            # self.send_msg(result_msg)
+            # print(result_msg)
         
         self.disconnect()
 
@@ -118,6 +134,10 @@ class Server:
 if __name__ =='__main__':
     host = '127.0.0.1'
     port = 3070
-    S = Server(host, port)
+    S = Server(host, 
+               port,
+               path=os.getcwd(),
+                ini_path = os.path.join(os.getcwd(), 'AlgaeList.txt'),
+                model='')
     S.server_activate()
     
