@@ -11,12 +11,13 @@ from one_image_inference import save_predict_obj_img,\
 from mmdet.apis import init_detector
 from mmdet.apis import inference_detector
 from mmcv import Config
-
+import glob
 
 class Server:
     def __init__(self, 
                 host:str='127.0.0.1', 
                 port:int=3070,
+                data_path:str = '',
                 ini_path:str = os.path.join('D:', 'WATIZ', 'ini', 'AlgaeList.txt'),
                 model_path:str=''
                 ):
@@ -26,14 +27,14 @@ class Server:
         Args:
             host (str, optional): [host ip number]. Defaults to '127.0.0.1'.
             port (int, optional): [port number]. Defaults to 3070.
-            path (str, optional): [파이썬 서버로 보낼 원폰사진들 들어있는 폴더경로]. Defaults to ''.
+            data_path (str, optional): [파이썬 서버로 보낼 원폰사진들 들어있는 폴더경로]. Defaults to ''.
             ini_path (str, optional): [Label Folder List]. Defaults to ''.
             model_path (str, optional): [DL model path]. Defaults to ''.
         """
         self.host = host
         self.port = port
         self.model_path = model_path
-        
+        self.data_path = data_path
         self.serv_addr = (self.host, self.port)
         self.ini_path = ini_path
         
@@ -103,6 +104,7 @@ class Server:
         self.send_msg('server is ready')
         
         while True:
+            start = time.process_time()
             print('Waiting for transmission....')
             img_path = self.recv_msg()
 
@@ -124,20 +126,33 @@ class Server:
                 if not os.path.exists(result):
                     os.mkdir(result)
             
-                tmp_path = os.path.join(os.getcwd(), 'temp')
+                tmp_path = os.path.join(result, 'temp')
                 if not os.path.exists(tmp_path):
                     os.mkdir(tmp_path)
-            
-            start = time.process_time()
-            #save_path, result = self.diagnoisis_volt(img_path)
-            # if save_path is None:
-            #     continue
+                
+                for class_name in self.model.CLASSES:
+                    if not os.path.exists(os.path.join(result, class_name)):
+                        os.mkdir(os.path.join(result, class_name))
+                        
+                
+                data_path_list = [filename for filename in glob.iglob(self.data_path+'/*')
+                                    if filename.lower().endswith(('.bmp', 'jpg'))]
+                
+                for img_path in data_path_list:
+                    save_predict_obj_img(self.model, 
+                                        img_path, 
+                                        save_path=tmp_path)
+                    result = get_predict(self.model,
+                                    img_path)
+                    print(result)
+                    with open(os.path.join(self.data_path, 
+                                        f'{img_path[:-3]}txt'), 'w') as f:
+                        f.write('\n'.join(result))
+                    
+                    
 
-            # print(f'result_code {result}\n result_path {save_path}')
             end = time.process_time()
-            #result_msg = f'{result}?{save_path}'
-            # self.send_msg(result_msg)
-            # print(result_msg)
+
         
         self.disconnect()
 
@@ -149,8 +164,8 @@ if __name__ =='__main__':
     
     S = Server(host, 
             port,
-            #path=os.path.join(os.getcwd(),'work_dir', 'C010401_20210726_144328255.jpg'),
-            ini_path = os.path.join(os.getcwd(), 'AlgaeList.txt'),
+            data_path = os.path.join(os.getcwd(), 'data'),
+            ini_path = os.path.join(os.getcwd(), 'etc', 'AlgaeList.txt'),
             model_path=os.path.join('work_dir', 'epoch_50.pth'))
     
     S.server_activate()
