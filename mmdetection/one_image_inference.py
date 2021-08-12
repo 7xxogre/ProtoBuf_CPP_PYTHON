@@ -42,7 +42,6 @@ def save_predict_obj_img(model, img_path, save_path = None, percentage = 0.4):
             cnt += 1
     
 
-
 def get_predict(model, img_path, percentage = 0.4):
     """
         이미지 경로를 받아 해당 이미지에 대한 모델의 예측을 생성하여 

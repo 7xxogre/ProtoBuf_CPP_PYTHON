@@ -4,6 +4,7 @@ import os
 import time
 from PIL import Image
 import cv2
+from torch.nn.functional import threshold
 #Custom Function
 from one_image_inference import save_predict_obj_img,\
                                 get_predict
@@ -18,6 +19,7 @@ class Server:
                 host:str='127.0.0.1', 
                 port:int=3070,
                 data_path:str = '',
+                threshold:int=0.0,
                 ini_path:str = os.path.join('D:', 'WATIZ', 'ini', 'AlgaeList.txt'),
                 model_path:str=''
                 ):
@@ -37,7 +39,7 @@ class Server:
         self.data_path = data_path
         self.serv_addr = (self.host, self.port)
         self.ini_path = ini_path
-        
+        self.threshold = threshold
         #assert path != None, 'Images Path is Empty'
         #self.path = path
         self.conn_sock = None
@@ -127,8 +129,13 @@ class Server:
                     os.mkdir(result)
             
                 tmp_path = os.path.join(result, 'temp')
+                
                 if not os.path.exists(tmp_path):
                     os.mkdir(tmp_path)
+                    
+                etc_path = os.path.join(result, 'etc')
+                if not os.path.exists(etc_path):
+                    os.mkdir(etc_path)
                 
                 for class_name in self.model.CLASSES:
                     if not os.path.exists(os.path.join(result, class_name)):
@@ -141,17 +148,17 @@ class Server:
                 for img_path in data_path_list:
                     save_predict_obj_img(self.model, 
                                         img_path, 
+                                        percentage=self.threshold,
                                         save_path=tmp_path)
                     result_list = get_predict(self.model,
-                                    img_path)
+                                    img_path,
+                                    percentage=self.threshold)
                     
                     with open(os.path.join(self.data_path, 
                                         f'{img_path[:-3]}txt'), 'w+') as f:
                         for result in result_list:
-                            f.write('\n'.join(result))
+                            f.write(result+'\n')
                     
-                    
-
             end = time.process_time()
 
         
@@ -167,6 +174,7 @@ if __name__ =='__main__':
             port,
             data_path = os.path.join(os.getcwd(), 'data'),
             ini_path = os.path.join(os.getcwd(), 'etc', 'AlgaeList.txt'),
+            threshold = 0.4,
             model_path=os.path.join('work_dir', 'epoch_50.pth'))
     
     S.server_activate()
