@@ -9,7 +9,7 @@ from mmdet.apis import inference_detector
 
 
 
-def save_predict_obj_img(model, img_path, save_path = None):
+def save_predict_obj_img(model, img_path, save_path = None, percentage = 0.4):
     """
         image 경로를 받아 해당 이미지에 대한 모델의 예측을 생성해 object로 추정되는
         crop을 save_path에 저장하는 함수
@@ -35,7 +35,7 @@ def save_predict_obj_img(model, img_path, save_path = None):
     img_origin = mmcv.imread(img_path).astype(np.uint8)
     cnt = 1
     for i in range(len(bboxes)):
-        if bboxes[i, -1] > 0.4:
+        if bboxes[i, -1] > percentage:
             im = Image.fromarray(img_origin[int(bboxes[i, 1]) : int(bboxes[i, 3]),int(bboxes[i, 0]) : int(bboxes[i, 2]),:])
             path = os.path.join(save_path , img_name + '_' + str(labels[i]) + '_' + str(cnt) + '.jpg')
             im.save(path)
@@ -43,7 +43,7 @@ def save_predict_obj_img(model, img_path, save_path = None):
     
 
 
-def get_predict(model, img_path):
+def get_predict(model, img_path, percentage = 0.4):
     """
         이미지 경로를 받아 해당 이미지에 대한 모델의 예측을 생성하여 
         [[class_num, 확률, class_num, bbox 가로, bbox 세로], ...] 의 object별 리스트 리턴
@@ -65,10 +65,12 @@ def get_predict(model, img_path):
     ret = []
     labels = np.concatenate(labels)
     for i, bbox in enumerate(bboxes):
-        if bbox[-1] > 0.4:
-            lst = [img_path, str(labels[i]),str(bbox[-1])[:8], \
-                str(labels[i]), str(int(bbox[3]) - int(bbox[1])), str(int(bbox[2]) - int(bbox[0]))]
-            ret.append(lst)
+        if bbox[-1] > percentage:
+            lst = [img_path, str(labels[i]),str(bbox[-1])[:8], str(labels[i]), \
+                str(int(bbox[3]) - int(bbox[1])), str(int(bbox[2]) - int(bbox[0]))]
+            str_lst = ','.join(lst)
+
+            ret.append(str_lst)
 
     return ret
 
