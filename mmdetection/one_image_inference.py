@@ -66,7 +66,8 @@ def get_predict(model, img_path):
     labels = np.concatenate(labels)
     for i, bbox in enumerate(bboxes):
         if bbox[-1] > 0.4:
-            lst = [img_path, labels[i],bbox[-1], labels[i], int(bbox[3]) - int(bbox[1]), int(bbox[2]) - int(bbox[0])]
+            lst = [img_path, labels[i], bbox[-1], labels[i], \
+                    int(bbox[3]) - int(bbox[1]), int(bbox[2]) - int(bbox[0])]
             ret.append(lst)
 
     return ret

@@ -142,12 +142,13 @@ class Server:
                     save_predict_obj_img(self.model, 
                                         img_path, 
                                         save_path=tmp_path)
-                    result = get_predict(self.model,
+                    result_list = get_predict(self.model,
                                     img_path)
-                    print(result)
+                    
                     with open(os.path.join(self.data_path, 
-                                        f'{img_path[:-3]}txt'), 'w') as f:
-                        f.write('\n'.join(result))
+                                        f'{img_path[:-3]}txt'), 'w+') as f:
+                        for result in result_list:
+                            f.write('\n'.join(result))
                     
                     
 
