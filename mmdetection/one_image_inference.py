@@ -83,7 +83,7 @@ def get_json(model, img_path, percentage = 0.4):
             segm_result = segm_result[0] 
     else:
         bbox_result, segm_result = result, None
-    image_name = os.path.split(img_path)[-1].split('.')[0]
+    json_name = img_path.split('.')[0]
     bboxes = np.vstack(bbox_result)
     labels = [
             np.full(bbox.shape[0], i, dtype=np.int32)
@@ -130,7 +130,7 @@ def get_json(model, img_path, percentage = 0.4):
             obj['shape_type'] = "polygon"
             obj['flags'] = dict()
             ret_json['shapes'].append(obj)
-        with open(image_name + ".json", 'w') as f:
+        with open(json_name + ".json", 'w') as f:
             json.dump(ret_json, f)
     return ret_json
 
