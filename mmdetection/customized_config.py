@@ -25,34 +25,23 @@ classes = ( 'anabaena',
 
 data = dict(
     train=dict(
-        img_prefix='./data_dataset_converted/',
+        img_prefix='./Train/',
         classes=classes,
-        ann_file='./data_dataset_converted/annotations.json',
-        pipeline = [
-            dict(type='LoadImageFromFile'),
-            dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
-            dict(type='Resize', img_scale=(1333, 800), keep_ratio=True),
-            dict(type='RandomFlip', flip_ratio=0.5),
-            dict(
-                type='Normalize',
-                mean=[123.675, 116.28, 103.53],
-                std=[58.395, 57.12, 57.375],
-                to_rgb=True),
-            dict(type='DefaultFormatBundle'),
-            dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_masks'])
-        ]),
+        ann_file='./Train/annotations.json'),
     val=dict(
-        img_prefix='./test_data/',
+        img_prefix='./Validation/',
         classes=classes,
-        ann_file='./test_data/annotations.json'),
+        ann_file='./Validation/annotations.json'),
     test=dict(
-        img_prefix='./test_data/',
+        img_prefix='./Test/',
         classes=classes,
-        ann_file='./test_data/annotations.json'))
+        ann_file='./Test/annotations.json'))
 
 work_dir = 'work_dir'
-#load_from = 'work_dir/epoch_24.pth'
-runner = dict(type='EpochBasedRunner', max_epochs=50)
 
+runner = dict(type='EpochBasedRunner', max_epochs=50)
+# resume_from = 'work_dir/epoch_16.pth'
+checkpoint_config = dict(interval=1, save_optimizer = True)
 #checkpoint_config
 
+# python labelme2coco.py Dataset data_dataset_converted --labels labels.txt
