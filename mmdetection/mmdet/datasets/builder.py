@@ -9,105 +9,186 @@ from mmcv.runner import get_dist_info
 from mmcv.utils import Registry, build_from_cfg
 from torch.utils.data import DataLoader
 
-
 from collections.abc import Sequence
 import torch
 from mmcv.parallel import collate
 
 from mmcv.parallel import DataContainer
+from mmdet.core import BitmapMasks
 
-# custom collate
-def my_collate(batch, samples_per_gpu=1, use_origin=False):
+# for my_single_gpu_test(mmdet\apis\test.py)
+def inference_collate(batch, samples_per_gpu):
+    batch_copy = copy.deepcopy(batch)
+    origin_ret = collate(batch_copy, samples_per_gpu)
+    ret = dict()
+    metas_key = 'img_metas'
+    img_key = 'img'
+    ori_siz = batch[0][metas_key][0].data['ori_shape']
+    siz = batch[0][metas_key][0].data['img_shape']
+    width = int(siz[0]/2)           # input's half width
+    height = int(siz[1]/2)          # input's half height
+    width_lis = [0, width//2, width]
+    height_lis = [0, height//2, height]
+
+    sx = [wid_point for _ in range(3) for wid_point in width_lis ]
+    sy = [hei_point for hei_point in height_lis for _ in range(3)]
+
+    metas_stack = []
+    img_stack = []      # img
+
+    # modify meta data's 'img_shape'
+    for i in range(0, len(batch), samples_per_gpu):
+        for j in range(i, i + samples_per_gpu):
+            batch[j][metas_key][0].data['img_shape'] = (width, height, siz[2])
+            batch[j][metas_key][0].data['pad_shape'] = batch[j][metas_key][0].data['img_shape']
+            batch[j][metas_key][0].data['ori_shape'] = (ori_siz[0]//2, ori_siz[1]//2, ori_siz[2])
+
+
+    for i in range(0, len(batch), samples_per_gpu):
+        metas_lst = []
+        img_lst = None  # img Tensor
+        for j in range(i, i+samples_per_gpu):
+            metas_sample = batch[i][metas_key][j]
+            sample_img = batch[i][img_key][j]          # img
+            for x, y in zip(sx, sy):              # divide 9 parts
+                if img_lst is None:
+                    img_lst = torch.unsqueeze(sample_img.data[:, x:x + width, y:y + height], dim = 0)
+                else:
+                    img_lst = torch.cat((img_lst, torch.unsqueeze(sample_img.data[:, x:x + width, y:y + height], dim = 0)), dim = 0)
+                metas_lst.append(metas_sample.data)
+
+        metas_stack.append(metas_lst)       
+        img_stack.append(img_lst)           # img stack
+
+    ret[metas_key] = [DataContainer(metas_stack,batch[0][metas_key][0].stack, batch[0][metas_key][0].padding_value, cpu_only=True)]
+    ret[img_key] = img_stack
+
+    return ret, origin_ret
+
+
+# custom collate (if use_origin is "True" then this program use mmcv's collate function)
+def my_collate(batch, samples_per_gpu=1, use_origin=True):
+    rand = np.random.rand()
+    if rand >= 0.7:
+       use_origin = True
     if use_origin or isinstance(batch[0]['img'], Sequence):
+        # return inference_collate(batch, samples_per_gpu)  # <- 접근 방식 5번 (test 방식 변경)
         return collate(batch, samples_per_gpu)
     else:
         ret = dict()
         siz = batch[0]['img'].data.shape
-        width = int(siz[1]/2)       # 입력의 width의 half
-        height = int(siz[2]/2)      # 입력의 height의 half
+        width = int(siz[1]/2)       # input width's half
+        height = int(siz[2]/2)      # input height's half
+
         width_lis = [0, width//2, width]
         height_lis = [0, height//2, height]
+        print(f"siz : {siz}, width : {width}, height : {height}")
+        # start points
         sx = [wid_point for _ in range(3) for wid_point in width_lis ]
         sy = [hei_point for hei_point in height_lis for _ in range(3)]
+        # sx = [0, 0, width, width]
+        # sy = [0, height, 0, height]
 
-        # 입력 이미지 메타데이터 shape 변경        
+
+        # modify meta data's 'img_shape'
         metas_key = 'img_metas'
-        for i in range(0, len(batch), samples_per_gpu):
-            lst = []
-            for j in range(i, i + samples_per_gpu):
-                sample = batch[j][metas_key]
-                sample.data['img_shape'] = (width, height, sample.data['img_shape'][2])
+        for i in range(0, len(batch)):
+            batch[i][metas_key].data['img_shape'] = (width, height, batch[i][metas_key].data['img_shape'][2])
+            batch[i][metas_key].data['pad_shape'] = batch[i][metas_key].data['img_shape']
+            # batch[i][metas_key].data['ori_shape'] = (batch[i][metas_key].data['ori_shape'][0]/2, batch[i][metas_key].data['ori_shape'][1]/2, batch[i][metas_key].data['ori_shape'][2])
         
         
-        # 데이터를 9분할 하여 저장. 이때 object가 존재하는 부분만 저장하게 됨.
-        key = 'img'
-        key1 = 'gt_bboxes'
-        key2 = 'gt_labels'
-        key3 = 'gt_masks'
+        # divide image to 9 parts
+        img_key = 'img'
+        bbox_key = 'gt_bboxes'
+        label_key = 'gt_labels'
+        mask_key = 'gt_masks'
+        
         metas_stack = []
-        stacked = []    # img
-        stack1 = []     # gt_bboxes
-        stack2 = []     # gt_labels
-        stack3 = []     # gt_masks
+        img_stack = []      # img
+        bbox_stack = []     # gt_bboxes
+        label_stack = []    # gt_labels
+        mask_stack = []     # gt_masks
+
         for i in range(0, len(batch), samples_per_gpu):
             metas_lst = []
-            lst = None  # img Tensor
-            lst1 = []   # gt_bboxes list
-            lst2 = []   # gt_labels list
-            lst3 = []   # gt_masks list, 8 BitmapMasks
+            img_lst = None  # img Tensor
+            bbox_lst = []   # gt_bboxes list
+            label_lst = []  # gt_labels list
+            mask_lst = []   # gt_masks list, 8 BitmapMasks
             false_cnt = 0
-            for j in range(i, i+samples_per_gpu):
+            
+            for j in range(i, i + samples_per_gpu):
                 metas_sample = batch[j][metas_key]
-                sample = batch[j][key]          # img
-                sample1 = batch[j][key1]        # gt_bboxes
-                sample2 = batch[j][key2]        # gt_labels
-                sample3 = batch[j][key3]        # gt_masks
-                for k in range(9):              # divide 9 parts
-                    bbox_offset = torch.tensor([sx[k], sy[k], sx[k], sy[k]],
+                sample = batch[j][img_key]          # img
+                sample1 = batch[j][bbox_key]        # gt_bboxes
+                sample2 = batch[j][label_key]       # gt_labels
+                sample3 = batch[j][mask_key]        # gt_masks
+                origin_cnt = sample3.data.masks.sum(axis = (1,2))           # each object's number of pixels
+
+                for x, y in zip(sx, sy):              # divide 9 parts
+                    bbox_offset = torch.tensor([x, y, x, y],
                                         dtype=torch.float32)
                     bboxes = sample1.data - bbox_offset
                     bboxes[:, 0::2] = torch.clamp(bboxes[:, 0::2], 0, width)
                     bboxes[:, 1::2] = torch.clamp(bboxes[:, 1::2], 0, height)
                     valid_inds = (bboxes[:, 2] > bboxes[:, 0]) & (bboxes[:, 3] > bboxes[:, 1])
-                    
+
                     if valid_inds.any():        # valid object in this part...
-                        masking = sample3.data[valid_inds.nonzero(as_tuple = True)[0]].crop(np.asarray([sx[k], sy[k], sx[k] + width, sy[k] + height]))
-                        if masking.masks.any().item():     # valid mask in this part...
-                            if lst is None:
-                                lst = torch.unsqueeze(sample.data[:, sx[k]:sx[k] + width, sy[k]:sy[k]+height], dim = 0)
+                        masking = sample3.data[valid_inds.nonzero(as_tuple = True)[0]].crop(np.asarray([x, y, x + width, y + height]))
+                        mask_cnt = masking.masks.sum(axis = (1, 2))
+                        mask_valid_inds = (mask_cnt >= origin_cnt[valid_inds.nonzero(as_tuple = True)[0]] * 0.4)
+                        valid_inds[torch.where(valid_inds == True)[0]] = torch.from_numpy(mask_valid_inds)
+                        if valid_inds.any():     # valid mask in this part...
+
+                            if img_lst is None:
+                                img_lst = torch.unsqueeze(sample.data[:, x:x + width, y:y + height], dim = 0)
                             else:
-                                lst = torch.cat((lst, torch.unsqueeze(sample.data[:, sx[k]:sx[k] + width, sy[k]:sy[k]+height], dim = 0)), dim = 0)
+                                img_lst = torch.cat((img_lst, torch.unsqueeze(sample.data[:, x:x + width, y:y + height], dim = 0)), dim = 0)
                             metas_lst.append(metas_sample.data)
-                            lst1.append(bboxes[valid_inds, :])
-                            lst2.append(sample2.data[valid_inds])
-                            lst3.append(masking)
+                            bbox_lst.append(bboxes[valid_inds, :])
+                            label_lst.append(sample2.data[valid_inds])
+                            mask_lst.append(masking[mask_valid_inds])
                         else:
                             false_cnt += 1
                     else:
                         false_cnt += 1
 
-            # 부족한 수 만큼 랜덤으로 추가합니다.
-            batch_len = len(lst1)
-            for j in range(false_cnt):
+            # random add with transpose
+            batch_len = len(bbox_lst)
+            false_cnt += 1
+            for _ in range(false_cnt//2):
                 idx = np.random.randint(batch_len)
                 metas_lst.append(metas_lst[idx])
-                lst = torch.cat((lst, torch.unsqueeze(lst[idx, :, :, :], dim = 0)), dim = 0)
-                lst1.append(lst1[idx])
-                lst2.append(lst2[idx])
-                lst3.append(lst3[idx])
+                label_lst.append(label_lst[idx])
+                # transpose add
+                img_lst = torch.cat((img_lst, torch.unsqueeze(img_lst[idx,:,:,:].transpose(1,2), dim = 0)), dim = 0)
+                bbox_temp = torch.zeros_like(bbox_lst[idx])
+                bbox_temp[:,0] = bbox_lst[idx][:,1]
+                bbox_temp[:, 2] = bbox_lst[idx][:, 3]
+                bbox_temp[:, 1] = bbox_lst[idx][:, 0]
+                bbox_temp[:, 3] = bbox_lst[idx][:, 2]
+                bbox_lst.append(bbox_temp)
+                mask_lst.append(BitmapMasks(mask_lst[idx].masks.transpose(0,2,1), mask_lst[idx].width, mask_lst[idx].height))
+
+                # just add
+                # img_lst = torch.cat((img_lst, torch.unsqueeze(img_lst[idx, :, :, :], dim = 0)), dim = 0)
+                # bbox_lst.append(bbox_lst[idx])
+                # mask_lst.append(mask_lst[idx])
+
             metas_stack.append(metas_lst)
-            stacked.append(lst)             # img stack
-            stack1.append(lst1)             # gt_bboxes stack
-            stack2.append(lst2)             # gt_labels stack
-            stack3.append(lst3)             # gt_masks stack
+            img_stack.append(img_lst)             # img stack
+            bbox_stack.append(bbox_lst)             # gt_bboxes stack
+            label_stack.append(label_lst)             # gt_labels stack
+            mask_stack.append(mask_lst)             # gt_masks stack
+
         ret[metas_key] = DataContainer(metas_stack, batch[0][metas_key].stack, batch[0][metas_key].padding_value, cpu_only=True)
-        ret[key] = DataContainer(stacked, batch[0][key].stack, batch[0][key].padding_value, cpu_only=False)
-        ret[key1] = DataContainer(stack1, batch[0][key1].stack, batch[0][key1].padding_value, cpu_only=False)
-        ret[key2] = DataContainer(stack2, batch[0][key2].stack, batch[0][key2].padding_value, cpu_only=False)
-        ret[key3] = DataContainer(stack3, batch[0][key3].stack, batch[0][key3].padding_value, cpu_only=True)
+        ret[img_key] = DataContainer(img_stack, batch[0][img_key].stack, batch[0][img_key].padding_value, cpu_only=False)
+        ret[bbox_key] = DataContainer(bbox_stack, batch[0][bbox_key].stack, batch[0][bbox_key].padding_value, cpu_only=False)
+        ret[label_key] = DataContainer(label_stack, batch[0][label_key].stack, batch[0][label_key].padding_value, cpu_only=False)
+        ret[mask_key] = DataContainer(mask_stack, batch[0][mask_key].stack, batch[0][mask_key].padding_value, cpu_only=True)
         # print("return:\n",ret)
         return ret
-
 
 from .samplers import DistributedGroupSampler, DistributedSampler, GroupSampler
 

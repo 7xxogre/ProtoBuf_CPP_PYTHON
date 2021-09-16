@@ -13,6 +13,10 @@
 #include <string>
 #include <queue>
 #include "client.h"
+
+//hci's yumin add (for read file in data directory and send to python server (Sleep))
+#include <windows.h>
+
 /*
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -80,7 +84,7 @@ UINT cthread(LPVOID pParam) {
 	string path;
 	string result;
 	Mat result_img;
-
+	bool start = false;
 	while (true) {
 		mu.lock();
 		//g_mutex.Lock();
@@ -93,18 +97,63 @@ UINT cthread(LPVOID pParam) {
 			qu.pop();
 			//mu.unlock();
 			mu.unlock();
-			C.send_msg(String("start1"));	//신호
-			//C.send_msg(path);	//경로 보내는거
-			result = C.recv_msg();	//결과 받는거
-			if(result =="pramchange")
+			if (!start)
 			{
-				continue;
+				start = true;
+				C.send_msg(String("start1"));	//신호
 			}
-			C.slice_msg(result);
-			string paths = C.get_path();
-			result = C.get_result();
-			result_img = imread(paths);
 			
+			CFileFind finder;
+			CString CstrPathName(path.c_str());
+
+			BOOL bWorking = finder.FindFile(CstrPathName + "\\*.jpg");
+
+			while (bWorking)
+			{
+				bWorking = finder.FindNextFile();
+				if (finder.IsDirectory() || finder.IsDots())
+					continue;
+				CString _fileName = finder.GetFileName();
+
+				CT2CA pszConvertedAnsiString(_fileName);
+				std::string fileName(pszConvertedAnsiString);
+				C.send_msg(String(path + "\\" + fileName + "?"));			// ?를 구분자로 사용
+				Sleep(200);
+			}
+
+			bWorking = finder.FindFile(CstrPathName + "\\*.bmp");
+
+			while (bWorking)
+			{
+				bWorking = finder.FindNextFile();
+				if (finder.IsDirectory() || finder.IsDots())
+					continue;
+				CString _fileName = finder.GetFileName();
+
+				CT2CA pszConvertedAnsiString(_fileName);
+				std::string fileName(pszConvertedAnsiString);
+				C.send_msg(String(path + "\\" + fileName + "?"));			// ?를 구분자로 사용
+				Sleep(200);
+			}
+
+
+			// C.send_msg(path);
+			//C.send_msg(path);	//경로 보내는거
+			
+
+
+			//result = C.recv_msg();	//결과 받는거
+			//if(result =="pramchange")
+			//{
+			//	continue;
+			//}
+			//C.slice_msg(result);
+			//string paths = C.get_path();
+			//result = C.get_result();
+			//result_img = imread(paths);
+			
+
+
 			//resize(result_img, result_img, Size(720, 860));
 			//pFormView->DisplayImage(result_img, 1);
 			
@@ -114,7 +163,6 @@ UINT cthread(LPVOID pParam) {
 	WSACleanup();
 	return 0;
 }
-
 
 CValveSeatInspectionDlg::CValveSeatInspectionDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_VALVESEATINSPECTION_DIALOG, pParent)
@@ -173,6 +221,8 @@ BOOL CValveSeatInspectionDlg::OnInitDialog()
 	m_iRLengh = 100;
 	m_BTN_CAPTURE.EnableWindow(false);
 	GetDlgItem(IDC_ED_SAVEPATH)->SetWindowTextW(_T("D:"));
+
+
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
 
@@ -1054,6 +1104,9 @@ void CValveSeatInspectionDlg::OnBnClickedButton3()
 	CImage image_data;
 
 	CString path;
+	
+	
+	/*
 	CFileDialog fileDlg(TRUE, NULL, NULL, OFN_READONLY, _T("image file(*.jpg;*.bmp;*.png;)|*.jpg;*.bmp;*.png;|All Files(*.*)|*.*||"));
 	if (fileDlg.DoModal() == IDOK)
 	{
@@ -1063,7 +1116,7 @@ void CValveSeatInspectionDlg::OnBnClickedButton3()
 		//SetDlgItemText(IDC_EDIT1, strPathName);
 		std::string imagepath(pszConvertedAnsiString);
 
-		//이미지 불러오기완료
+		//이미지 불러오기 완료
 		//if (!m_matImageOrigin.data) MessageBox(_T("Image open error"));
 
 		//server queue 에 넣기
@@ -1071,15 +1124,30 @@ void CValveSeatInspectionDlg::OnBnClickedButton3()
 		qu.push(imagepath);
 		mu.unlock();
 
+		// 계속 꺼지는데 m_matImage, resize, DisplayImage를 주석으로 만들면 꺼지지 않습니다
 		//image_data.Load(strPathName);
 		m_matImage = imread(imagepath, IMREAD_UNCHANGED);
 		//Mat m_matImage2 = m_matImage(Range(720, 0), Range(280, 1000));
 		//imshow("test",m_matImage);
 		resize(m_matImage, m_matImage, Size(720, 1280));
 		DisplayImage(m_matImage, 0);
-	
-	
 	}
+	*/
+	
+
+	// 폴더로 선택
+	CFolderPickerDialog Picker(NULL, OFN_READONLY, NULL, 0);
+	if (Picker.DoModal() == IDOK)
+	{
+		CString strPathName = Picker.GetPathName();
+		CT2CA pszConvertedAnsiString(strPathName);
+		std::string strFolderPath(pszConvertedAnsiString);
+
+		mu.lock();
+		qu.push(strFolderPath);
+		mu.unlock();
+	}
+
 }
 
 
