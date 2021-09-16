@@ -118,6 +118,7 @@ mmdet/.mim
 work_dirs/
 work_dir/
 results/
+result/
 test_data/
 data_dataset_converted
 
