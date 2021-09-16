@@ -95,6 +95,20 @@ train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
     dict(
+            type='Albu',
+            transforms=[
+                        dict(type='CopyPaste', 
+                            blend=True, 
+                            sigma=1, 
+                            pct_objects_paste=0.8, 
+                            p=1.
+                            )
+                        ],
+            bbox_params=dict(
+                type='BboxParams',
+                format='coco',
+                min_visibility=0.05)),
+    dict(
         type='Resize',
         img_scale=[(1333, 640), (1333, 672), (1333, 704), (1333, 736),
                    (1333, 768), (1333, 800)],
